@@ -1,10 +1,12 @@
 # api/index.py
 from flask import Flask, request, jsonify
+import io
 import os
 import re
 import requests
 from requests.auth import HTTPBasicAuth
 import urllib3
+from http.server import BaseHTTPRequestHandler
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -170,7 +172,77 @@ def order_search():
         return jsonify({"success": False, "error": str(e)})
 
 
-# Vercel auto-detects the Flask "app" instance; do not define a custom handler.
+# =============================================================================
+# VERCEL: handler must be a class subclasses BaseHTTPRequestHandler
+# =============================================================================
+def _make_environ(handler):
+    """Build WSGI environ from BaseHTTPRequestHandler."""
+    path = handler.path.split("?")[0] if handler.path else "/"
+    query = handler.path.split("?", 1)[1] if "?" in (handler.path or "") else ""
+    content_length = handler.headers.get("Content-Length", 0)
+    try:
+        content_length = int(content_length)
+    except ValueError:
+        content_length = 0
+    body = handler.rfile.read(content_length) if content_length else b""
+    environ = {
+        "REQUEST_METHOD": handler.command,
+        "PATH_INFO": path,
+        "SCRIPT_NAME": "",
+        "QUERY_STRING": query,
+        "CONTENT_TYPE": handler.headers.get("Content-Type", ""),
+        "CONTENT_LENGTH": str(content_length),
+        "wsgi.input": io.BytesIO(body),
+        "wsgi.version": (1, 0),
+        "wsgi.url_scheme": "https",
+        "wsgi.multithread": False,
+        "wsgi.multiprocess": False,
+        "wsgi.run_once": True,
+    }
+    for key, value in handler.headers.items():
+        environ["HTTP_" + key.upper().replace("-", "_")] = value
+    return environ
+
+
+class handler(BaseHTTPRequestHandler):
+    """Vercel expects this class name; dispatches to Flask app."""
+
+    def do_GET(self):
+        self._dispatch()
+
+    def do_POST(self):
+        self._dispatch()
+
+    def do_OPTIONS(self):
+        self._dispatch()
+
+    def _dispatch(self):
+        environ = _make_environ(self)
+        status_headers = []
+
+        def start_response(status, headers):
+            status_headers.append((status, headers))
+
+        try:
+            result = app(environ, start_response)
+            status, headers = status_headers[0]
+            code = int(status.split()[0])
+            self.send_response(code)
+            for k, v in headers:
+                self.send_header(k, v)
+            self.end_headers()
+            for chunk in result:
+                if isinstance(chunk, str):
+                    chunk = chunk.encode("utf-8")
+                self.wfile.write(chunk)
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"success":false,"error":"Internal server error"}')
+
+    def log_message(self, format, *args):
+        pass  # suppress default logging
 
 
 
