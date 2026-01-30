@@ -321,6 +321,20 @@
           <button type="button" id="copyJsonBtn" class="btn btn-secondary btn-sm">Copy JSON</button>
           <button type="button" id="updateDescriptionsBtn" class="btn btn-primary btn-sm">Update Item Descriptions</button>
         </div>
+        <!-- Update Progress Bar -->
+        <div id="updateProgressContainer" style="display: none; margin-top: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <div style="font-size: 0.9em; color: #ffffff;">
+              <span id="updateProgressText">Processing...</span>
+            </div>
+            <div style="font-size: 0.9em; color: #ffffff;">
+              <span id="updateProgressPercent">0%</span>
+            </div>
+          </div>
+          <div style="width: 100%; height: 8px; background: var(--input-bg); border-radius: 4px; overflow: hidden;">
+            <div id="updateProgressBar" style="height: 100%; background: var(--success); width: 0%; transition: width 0.3s ease;"></div>
+          </div>
+        </div>
         <div id="jsonViewerWrap" class="json-viewer-wrap" style="display: none;"></div>
       </div>
     </div>
@@ -750,6 +764,23 @@
       wrap.querySelectorAll('.jv-toggle').forEach(function(el) { el.textContent = '\u25BC '; });
     }
 
+    // Progress bar helpers
+    function showProgress(text, percent) {
+      const container = document.getElementById('updateProgressContainer');
+      const bar = document.getElementById('updateProgressBar');
+      const textEl = document.getElementById('updateProgressText');
+      const percentEl = document.getElementById('updateProgressPercent');
+      if (container) container.style.display = 'block';
+      if (bar) bar.style.width = percent + '%';
+      if (textEl) textEl.textContent = text;
+      if (percentEl) percentEl.textContent = Math.round(percent) + '%';
+    }
+
+    function hideProgress() {
+      const container = document.getElementById('updateProgressContainer');
+      if (container) container.style.display = 'none';
+    }
+
     // Update Item Descriptions workflow
     async function updateItemDescriptions() {
       if (!window._lastSearchJson || !sessionOrg || !sessionToken) {
@@ -772,11 +803,15 @@
       const btn = document.getElementById('updateDescriptionsBtn');
       if (btn) btn.disabled = true;
 
+      // Show progress bar
+      showProgress('Starting...', 0);
+
       logToConsole('\n=== Starting Update Item Descriptions ===', 'info');
       logToConsole(`Total orders: ${orderIds.length}`, 'info');
 
       try {
         // Step 1: Extract all unique ItemIds from all orders
+        showProgress('Extracting ItemIds...', 5);
         const itemIdSet = new Set();
         orderIds.forEach(function(orderId) {
           const order = orders[orderId];
@@ -791,14 +826,17 @@
 
         if (itemIds.length === 0) {
           logToConsole('No ItemIds found in orders', 'warning');
+          hideProgress();
           return;
         }
 
         // Step 2: Fetch all item descriptions in one batch call
+        showProgress('Fetching item descriptions...', 15);
         logToConsole(`Step 2: Fetching descriptions for ${itemIds.length} items...`, 'info');
         const itemResult = await apiCall('itemSearch', { org: sessionOrg, token: sessionToken, itemIds: itemIds });
         if (!itemResult.success) {
           logToConsole('Failed to fetch item descriptions: ' + (itemResult.error || 'Unknown error'), 'error');
+          hideProgress();
           return;
         }
 
@@ -806,6 +844,7 @@
         logToConsole(`Fetched ${items.length} item(s) from item master`, items.length > 0 ? 'success' : 'warning');
 
         // Build itemId -> description map
+        showProgress('Building description map...', 25);
         const descMap = {};
         items.forEach(function(item) {
           if (item.ItemId && item.Description != null) {
@@ -827,8 +866,15 @@
         let failCount = 0;
         const errors = [];
 
+        // Progress: 25% to 90% for order updates
+        const progressStart = 25;
+        const progressEnd = 90;
+
         for (let i = 0; i < orderIds.length; i++) {
           const orderId = orderIds[i];
+          const progressPct = progressStart + ((i + 1) / orderIds.length) * (progressEnd - progressStart);
+          showProgress(`Updating order ${i + 1}/${orderIds.length}: ${orderId}...`, progressPct);
+
           const order = orders[orderId];
           if (!order || !order.OrderLine || !Array.isArray(order.OrderLine)) {
             logToConsole(`Order ${orderId}: No OrderLine array, skipping`, 'warning');
@@ -886,9 +932,20 @@
           logToConsole('Errors:', 'error');
           errors.forEach(function(err) { logToConsole('  - ' + err, 'error'); });
         }
+
+        // Refresh results by re-running the search
+        showProgress('Refreshing results...', 95);
+        logToConsole('\nRefreshing search results...', 'info');
+        await searchWorkOrders();
+        showProgress('Complete!', 100);
+
       } catch (e) {
         logToConsole('Update Item Descriptions exception: ' + (e.message || String(e)), 'error');
       } finally {
+        // Hide progress bar after a short delay to show 100%
+        setTimeout(function() {
+          hideProgress();
+        }, 1000);
         if (btn) btn.disabled = false;
       }
     }
