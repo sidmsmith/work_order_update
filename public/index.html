@@ -944,10 +944,10 @@
       } catch (e) {
         logToConsole('Update Item Descriptions exception: ' + (e.message || String(e)), 'error');
       } finally {
-        // Hide progress bar after a short delay to show 100%
+        // Hide progress bar after a delay to show 100%
         setTimeout(function() {
           hideProgress();
-        }, 1000);
+        }, 5000);
         if (btn) btn.disabled = false;
       }
     }
