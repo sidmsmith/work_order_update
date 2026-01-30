@@ -246,6 +246,36 @@
     .modal-buttons .btn {
       min-width: 140px;
     }
+
+    /* JSON Viewer */
+    .json-viewer-wrap {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+      max-height: 70vh;
+      overflow: auto;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .json-viewer-wrap .jv-key { color: #79c0ff; }
+    .json-viewer-wrap .jv-string { color: #a5d6ff; }
+    .json-viewer-wrap .jv-number { color: #79c0ff; }
+    .json-viewer-wrap .jv-boolean { color: #ff7b72; }
+    .json-viewer-wrap .jv-null { color: #8b949e; }
+    .json-viewer-wrap .jv-bracket { color: #ff7b72; }
+    .json-viewer-wrap .jv-toggle {
+      cursor: pointer;
+      user-select: none;
+      color: #8b949e;
+      margin-right: 4px;
+    }
+    .json-viewer-wrap .jv-toggle:hover { color: var(--primary); }
+    .json-viewer-wrap .jv-children { margin-left: 1.25em; }
+    .json-viewer-wrap .jv-line { white-space: pre; }
+    .json-viewer-wrap .jv-error { color: var(--red-text); }
   </style>
 </head>
 <body>
@@ -275,10 +305,26 @@
     <!-- MAIN CONTENT (Hidden until authenticated) -->
     <!-- ============================================================================= -->
     <div id="mainContent" style="display: none;">
-    <div class="section-frame">
+      <div class="section-frame">
         <div class="section-title">Welcome</div>
         <p>You are successfully authenticated!</p>
+      </div>
+
+      <div class="section-frame" id="workOrderSection">
+        <div class="section-title">Work Order Search</div>
+        <p class="small text-muted mb-2">Enter one or more Work Order IDs (separate with space, colon, or semicolon), or <strong>*</strong> for all work orders.</p>
+        <div class="input-row">
+          <label class="form-label">Work Order(s):</label>
+          <input type="text" id="workOrderInput" class="form-control" placeholder="e.g. WO123456 WO456 or *" />
+          <button id="searchWorkOrderBtn" class="btn btn-primary" type="button">Search</button>
         </div>
+        <div id="workOrderSearchStatus" class="status-label" style="margin-top: 0.5rem;"></div>
+        <div id="workOrderSearchError" class="status-label" style="margin-top: 0.5rem; color: var(--red-text); display: none;"></div>
+        <div id="jsonViewerToolbar" class="btn-row" style="display: none; margin-top: 0.5rem;">
+          <button type="button" id="copyJsonBtn" class="btn btn-secondary btn-sm">Copy JSON</button>
+        </div>
+        <div id="jsonViewerWrap" class="json-viewer-wrap" style="display: none;"></div>
+      </div>
     </div>
   </div>
 
@@ -546,6 +592,168 @@
       }
     }
 
+    // --- Work Order Search & JSON Viewer ---
+    async function searchWorkOrders() {
+      const input = document.getElementById('workOrderInput');
+      const statusEl = document.getElementById('workOrderSearchStatus');
+      const errorEl = document.getElementById('workOrderSearchError');
+      const viewerWrap = document.getElementById('jsonViewerWrap');
+      const btn = document.getElementById('searchWorkOrderBtn');
+
+      const raw = input ? input.value.trim() : '';
+      if (!raw) {
+        if (errorEl) { errorEl.textContent = 'Enter Work Order(s) or * for all'; errorEl.style.display = 'block'; }
+        if (statusEl) statusEl.textContent = '';
+        return;
+      }
+      if (!sessionOrg || !sessionToken) {
+        if (errorEl) { errorEl.textContent = 'Session expired. Please authenticate again.'; errorEl.style.display = 'block'; }
+        return;
+      }
+
+      if (errorEl) errorEl.style.display = 'none';
+      if (statusEl) statusEl.textContent = 'Searching...';
+      if (btn) btn.disabled = true;
+      if (viewerWrap) { viewerWrap.style.display = 'none'; viewerWrap.innerHTML = ''; }
+      const toolbar = document.getElementById('jsonViewerToolbar');
+      if (toolbar) toolbar.style.display = 'none';
+
+      try {
+        const result = await apiCall('orderSearch', {
+          org: sessionOrg,
+          token: sessionToken,
+          workOrderInput: raw
+        });
+        if (result.success && result.data != null) {
+          if (statusEl) statusEl.textContent = 'Results loaded. Use expand/collapse to browse.';
+          renderJsonViewer(viewerWrap, result.data);
+          if (viewerWrap) viewerWrap.style.display = 'block';
+          if (toolbar) toolbar.style.display = 'flex';
+          window._lastSearchJson = result.data;
+        } else {
+          const msg = result.error || 'Search failed';
+          if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+          if (statusEl) statusEl.textContent = '';
+        }
+      } catch (e) {
+        if (errorEl) { errorEl.textContent = e.message || 'Search failed'; errorEl.style.display = 'block'; }
+        if (statusEl) statusEl.textContent = '';
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function renderJsonViewer(container, data) {
+      if (!container) return;
+      container.innerHTML = '';
+      try {
+        const root = typeof data === 'string' ? JSON.parse(data) : data;
+        const node = buildJsonNode(root, null, 'root', true);
+        container.appendChild(node);
+      } catch (e) {
+        const err = document.createElement('div');
+        err.className = 'jv-error';
+        err.textContent = 'Invalid JSON: ' + (e.message || String(e));
+        container.appendChild(err);
+      }
+    }
+
+    function buildJsonNode(value, key, keyLabel, expanded) {
+      const line = document.createElement('div');
+      line.className = 'jv-line';
+
+      const isObj = value !== null && typeof value === 'object' && !Array.isArray(value);
+      const isArr = Array.isArray(value);
+      const canToggle = isObj || isArr;
+      const isEmpty = canToggle && (isArr ? value.length === 0 : Object.keys(value).length === 0);
+
+      // Key label (skip for root)
+      if (key !== null) {
+        const toggle = document.createElement('span');
+        toggle.className = 'jv-toggle';
+        if (canToggle && !isEmpty) {
+          toggle.textContent = expanded ? '\u25BC ' : '\u25B6 ';
+          toggle.onclick = () => {
+            children.style.display = children.style.display === 'none' ? '' : 'none';
+            toggle.textContent = children.style.display === 'none' ? '\u25B6 ' : '\u25BC ';
+          };
+        } else if (isEmpty) {
+          toggle.textContent = '  ';
+        } else {
+          toggle.textContent = '  ';
+        }
+        line.appendChild(toggle);
+        const keySpan = document.createElement('span');
+        keySpan.className = 'jv-key';
+        keySpan.textContent = (keyLabel != null ? keyLabel : key) + ': ';
+        line.appendChild(keySpan);
+      }
+
+      if (value === null) {
+        const n = document.createElement('span');
+        n.className = 'jv-null';
+        n.textContent = 'null';
+        line.appendChild(n);
+        return line;
+      }
+      if (typeof value === 'boolean') {
+        const b = document.createElement('span');
+        b.className = 'jv-boolean';
+        b.textContent = value ? 'true' : 'false';
+        line.appendChild(b);
+        return line;
+      }
+      if (typeof value === 'number') {
+        const num = document.createElement('span');
+        num.className = 'jv-number';
+        num.textContent = String(value);
+        line.appendChild(num);
+        return line;
+      }
+      if (typeof value === 'string') {
+        const s = document.createElement('span');
+        s.className = 'jv-string';
+        s.textContent = '"' + value.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+        line.appendChild(s);
+        return line;
+      }
+
+      // Root object/array: add toggle for collapse
+      if (key === null && canToggle && !isEmpty) {
+        const rootToggle = document.createElement('span');
+        rootToggle.className = 'jv-toggle';
+        rootToggle.textContent = expanded ? '\u25BC ' : '\u25B6 ';
+        rootToggle.onclick = () => {
+          children.style.display = children.style.display === 'none' ? '' : 'none';
+          rootToggle.textContent = children.style.display === 'none' ? '\u25B6 ' : '\u25BC ';
+        };
+        line.appendChild(rootToggle);
+      }
+
+      const bracket = document.createElement('span');
+      bracket.className = 'jv-bracket';
+      bracket.textContent = isArr ? '[' : '{';
+      line.appendChild(bracket);
+
+      const children = document.createElement('div');
+      children.className = 'jv-children';
+      if (!expanded) children.style.display = 'none';
+      const entries = isArr ? value.map((v, i) => [String(i), v]) : Object.entries(value);
+      entries.forEach(([k, v]) => {
+        children.appendChild(buildJsonNode(v, k, isArr ? '[' + k + ']' : k, false));
+      });
+      const closeLine = document.createElement('div');
+      closeLine.className = 'jv-line';
+      const closeBracket = document.createElement('span');
+      closeBracket.className = 'jv-bracket';
+      closeBracket.textContent = isArr ? ']' : '}';
+      closeLine.appendChild(closeBracket);
+      children.appendChild(closeLine);
+
+      line.appendChild(children);
+      return line;
+    }
+
     // Register event handlers
     function registerEventHandlers() {
       const authBtn = document.getElementById('authBtn');
@@ -562,6 +770,36 @@
         orgInput.addEventListener('keypress', async (e) => {
           if (e.key === 'Enter') {
             await authenticate(orgInput.value);
+          }
+        });
+      }
+
+      const searchWorkOrderBtn = document.getElementById('searchWorkOrderBtn');
+      const workOrderInput = document.getElementById('workOrderInput');
+      if (searchWorkOrderBtn) {
+        searchWorkOrderBtn.addEventListener('click', searchWorkOrders);
+      }
+      if (workOrderInput) {
+        workOrderInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') searchWorkOrders();
+        });
+      }
+
+      const copyJsonBtn = document.getElementById('copyJsonBtn');
+      if (copyJsonBtn) {
+        copyJsonBtn.addEventListener('click', () => {
+          if (window._lastSearchJson == null) return;
+          try {
+            const str = typeof window._lastSearchJson === 'string'
+              ? window._lastSearchJson
+              : JSON.stringify(window._lastSearchJson, null, 2);
+            navigator.clipboard.writeText(str).then(() => {
+              copyJsonBtn.textContent = 'Copied!';
+              setTimeout(() => { copyJsonBtn.textContent = 'Copy JSON'; }, 2000);
+            });
+          } catch (e) {
+            copyJsonBtn.textContent = 'Copy failed';
+            setTimeout(() => { copyJsonBtn.textContent = 'Copy JSON'; }, 2000);
           }
         });
       }
