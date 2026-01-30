@@ -319,6 +319,7 @@
         <div id="jsonViewerToolbar" class="btn-row" style="display: none; margin-top: 0.5rem;">
           <button type="button" id="expandAllBtn" class="btn btn-secondary btn-sm">Expand All</button>
           <button type="button" id="copyJsonBtn" class="btn btn-secondary btn-sm">Copy JSON</button>
+          <button type="button" id="updateDescriptionsBtn" class="btn btn-primary btn-sm">Update Item Descriptions</button>
         </div>
         <div id="jsonViewerWrap" class="json-viewer-wrap" style="display: none;"></div>
       </div>
@@ -749,6 +750,154 @@
       wrap.querySelectorAll('.jv-toggle').forEach(function(el) { el.textContent = '\u25BC '; });
     }
 
+    // Update Item Descriptions workflow
+    async function updateItemDescriptions() {
+      if (!window._lastSearchJson || !sessionOrg || !sessionToken) {
+        logToConsole('Cannot update: no search results or session expired', 'error');
+        return;
+      }
+
+      const orders = window._lastSearchJson;
+      const orderIds = Object.keys(orders);
+      if (orderIds.length === 0) {
+        logToConsole('No orders to update', 'warning');
+        return;
+      }
+
+      if (!confirm(`Update item descriptions for ${orderIds.length} order(s)?\n\nThis will:\n1. Fetch descriptions from item master\n2. Update all order lines with new descriptions`)) {
+        logToConsole('Update cancelled by user', 'info');
+        return;
+      }
+
+      const btn = document.getElementById('updateDescriptionsBtn');
+      if (btn) btn.disabled = true;
+
+      logToConsole('\n=== Starting Update Item Descriptions ===', 'info');
+      logToConsole(`Total orders: ${orderIds.length}`, 'info');
+
+      try {
+        // Step 1: Extract all unique ItemIds from all orders
+        const itemIdSet = new Set();
+        orderIds.forEach(function(orderId) {
+          const order = orders[orderId];
+          if (order && order.OrderLine && Array.isArray(order.OrderLine)) {
+            order.OrderLine.forEach(function(line) {
+              if (line.ItemId) itemIdSet.add(line.ItemId);
+            });
+          }
+        });
+        const itemIds = Array.from(itemIdSet);
+        logToConsole(`Step 1: Extracted ${itemIds.length} unique ItemIds`, 'info');
+
+        if (itemIds.length === 0) {
+          logToConsole('No ItemIds found in orders', 'warning');
+          return;
+        }
+
+        // Step 2: Fetch all item descriptions in one batch call
+        logToConsole(`Step 2: Fetching descriptions for ${itemIds.length} items...`, 'info');
+        const itemResult = await apiCall('itemSearch', { org: sessionOrg, token: sessionToken, itemIds: itemIds });
+        if (!itemResult.success) {
+          logToConsole('Failed to fetch item descriptions: ' + (itemResult.error || 'Unknown error'), 'error');
+          return;
+        }
+
+        const items = itemResult.items || [];
+        logToConsole(`Fetched ${items.length} item(s) from item master`, items.length > 0 ? 'success' : 'warning');
+
+        // Build itemId -> description map
+        const descMap = {};
+        items.forEach(function(item) {
+          if (item.ItemId && item.Description != null) {
+            descMap[item.ItemId] = item.Description;
+          }
+        });
+        logToConsole(`Built description map for ${Object.keys(descMap).length} items`, 'info');
+
+        // Log missing items
+        const missingItems = itemIds.filter(function(id) { return !descMap[id]; });
+        if (missingItems.length > 0) {
+          logToConsole(`Warning: ${missingItems.length} ItemId(s) not found in item master:`, 'warning');
+          missingItems.forEach(function(id) { logToConsole('  - ' + id, 'warning'); });
+        }
+
+        // Step 3: Update each work order
+        logToConsole(`Step 3: Updating ${orderIds.length} work order(s)...`, 'info');
+        let successCount = 0;
+        let failCount = 0;
+        const errors = [];
+
+        for (let i = 0; i < orderIds.length; i++) {
+          const orderId = orderIds[i];
+          const order = orders[orderId];
+          if (!order || !order.OrderLine || !Array.isArray(order.OrderLine)) {
+            logToConsole(`Order ${orderId}: No OrderLine array, skipping`, 'warning');
+            failCount++;
+            errors.push(`${orderId}: No OrderLine array`);
+            continue;
+          }
+
+          const orderLines = [];
+          order.OrderLine.forEach(function(line) {
+            if (!line.OrderLineId) return;
+            const itemId = line.ItemId;
+            if (!itemId) {
+              logToConsole(`Order ${orderId}, Line ${line.OrderLineId}: No ItemId, skipping`, 'warning');
+              return;
+            }
+            const desc = descMap[itemId];
+            if (desc == null) {
+              logToConsole(`Order ${orderId}, Line ${line.OrderLineId}: ItemId ${itemId} not found, skipping`, 'warning');
+              return;
+            }
+            orderLines.push({ OrderLineId: line.OrderLineId, ItemDescription: desc });
+          });
+
+          if (orderLines.length === 0) {
+            logToConsole(`Order ${orderId}: No valid lines to update, skipping`, 'warning');
+            failCount++;
+            errors.push(`${orderId}: No valid lines`);
+            continue;
+          }
+
+          logToConsole(`Updating order ${orderId} (${orderLines.length} lines)...`, 'info');
+          const updateResult = await apiCall('updateWorkOrder', {
+            org: sessionOrg,
+            token: sessionToken,
+            orderId: orderId,
+            orderLines: orderLines
+          });
+
+          if (updateResult.success) {
+            logToConsole(`Order ${orderId}: Updated successfully`, 'success');
+            successCount++;
+          } else {
+            const errMsg = updateResult.error || 'Update failed';
+            logToConsole(`Order ${orderId}: Failed - ${errMsg}`, 'error');
+            failCount++;
+            errors.push(`${orderId}: ${errMsg}`);
+          }
+        }
+
+        logToConsole('\n=== Update Complete ===', 'info');
+        logToConsole(`Success: ${successCount}`, 'success');
+        logToConsole(`Failed: ${failCount}`, failCount > 0 ? 'error' : 'info');
+        if (errors.length > 0) {
+          logToConsole('Errors:', 'error');
+          errors.forEach(function(err) { logToConsole('  - ' + err, 'error'); });
+        }
+      } catch (e) {
+        logToConsole('Update Item Descriptions exception: ' + (e.message || String(e)), 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+
+# =============================================================================
+# VERCEL: handler must be a class subclasses BaseHTTPRequestHandler
+# =============================================================================
+
     function buildJsonNode(value, key, keyLabel, expanded) {
       const line = document.createElement('div');
       line.className = 'jv-line';
@@ -878,6 +1027,9 @@
 
       const expandAllBtn = document.getElementById('expandAllBtn');
       if (expandAllBtn) expandAllBtn.addEventListener('click', expandAllJsonViewer);
+
+      const updateDescriptionsBtn = document.getElementById('updateDescriptionsBtn');
+      if (updateDescriptionsBtn) updateDescriptionsBtn.addEventListener('click', updateItemDescriptions);
 
       const copyJsonBtn = document.getElementById('copyJsonBtn');
       if (copyJsonBtn) {

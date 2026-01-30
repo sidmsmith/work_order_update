@@ -199,6 +199,99 @@ def order_search():
         return jsonify({"success": False, "error": str(e), "requestDetails": request_details})
 
 
+@app.route("/api/itemSearch", methods=["POST"])
+def item_search():
+    """Search items by ItemIds to get descriptions."""
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        data = {}
+    org = (data.get("org") or "").strip()
+    token = (data.get("token") or "").strip()
+    item_ids = data.get("itemIds") or []
+
+    if not org or not token:
+        return jsonify({"success": False, "error": "ORG and token required"})
+    if not item_ids or not isinstance(item_ids, list):
+        return jsonify({"success": False, "error": "itemIds array required"})
+
+    quoted = "', '".join(item_ids)
+    query = f"ItemId IN (['{quoted}'])"
+    payload = {
+        "Query": query,
+        "Size": 200,
+        "Template": {"ItemId": None, "Description": None},
+    }
+
+    url = f"https://{API_HOST}/item-master/api/item-master/item/search"
+    facility_id = f"{org.upper()}-DM1"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "FacilityId": facility_id,
+        "selectedOrganization": org.upper(),
+        "selectedLocation": facility_id,
+    }
+
+    log_to_console(f"Item search for ORG: {org}, {len(item_ids)} items")
+
+    try:
+        r = requests.post(url, json=payload, headers=headers, timeout=60, verify=False)
+        body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"raw": r.text}
+        if not r.ok:
+            err_msg = body.get("message", body.get("error_description", r.text[:500])) if isinstance(body, dict) else r.text[:500]
+            return jsonify({"success": False, "error": err_msg, "status": r.status_code})
+        return jsonify({"success": True, "items": body.get("data", [])})
+    except Exception as e:
+        log_to_console(f"Item search error: {e}", prefix="[ITEM_SEARCH]")
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/updateWorkOrder", methods=["POST"])
+def update_work_order():
+    """Update work order with new item descriptions."""
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        data = {}
+    org = (data.get("org") or "").strip()
+    token = (data.get("token") or "").strip()
+    order_id = (data.get("orderId") or "").strip()
+    order_lines = data.get("orderLines") or []
+
+    if not org or not token:
+        return jsonify({"success": False, "error": "ORG and token required"})
+    if not order_id:
+        return jsonify({"success": False, "error": "orderId required"})
+    if not order_lines or not isinstance(order_lines, list):
+        return jsonify({"success": False, "error": "orderLines array required"})
+
+    payload = {"OrderId": order_id, "OrderLine": order_lines}
+
+    url = f"https://{API_HOST}/dcorder/api/dcorder/workorder/save"
+    facility_id = f"{org.upper()}-DM1"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "FacilityId": facility_id,
+        "selectedOrganization": org.upper(),
+        "selectedLocation": facility_id,
+    }
+
+    log_to_console(f"Update work order {order_id} for ORG: {org}, {len(order_lines)} lines")
+
+    try:
+        r = requests.post(url, json=payload, headers=headers, timeout=60, verify=False)
+        body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"raw": r.text}
+        if not r.ok:
+            err_msg = body.get("message", body.get("error_description", r.text[:500])) if isinstance(body, dict) else r.text[:500]
+            return jsonify({"success": False, "error": err_msg, "status": r.status_code})
+        return jsonify({"success": True, "response": body})
+    except Exception as e:
+        log_to_console(f"Update work order error: {e}", prefix="[UPDATE_WO]")
+        return jsonify({"success": False, "error": str(e)})
+
+
 # =============================================================================
 # VERCEL: handler must be a class subclasses BaseHTTPRequestHandler
 # =============================================================================
