@@ -113,7 +113,7 @@ ORDER_SEARCH_TEMPLATE = {
     "OrderLine": {
         "OrderLineId": None,
         "ItemId": None,
-        "ItemDescription": None,
+        "Description": None,
         "ProductTypeId": None,
         "PipelineStatus": None,
         "OrderedQuantity": None,

@@ -850,7 +850,7 @@
               logToConsole(`Order ${orderId}, Line ${line.OrderLineId}: ItemId ${itemId} not found, skipping`, 'warning');
               return;
             }
-            orderLines.push({ OrderLineId: line.OrderLineId, ItemDescription: desc });
+            orderLines.push({ OrderLineId: line.OrderLineId, Description: desc });
           });
 
           if (orderLines.length === 0) {
