@@ -318,7 +318,6 @@
         <div id="workOrderSearchError" class="status-label" style="margin-top: 0.5rem; color: var(--red-text); display: none;"></div>
         <div id="jsonViewerToolbar" class="btn-row" style="display: none; margin-top: 0.5rem;">
           <button type="button" id="expandAllBtn" class="btn btn-secondary btn-sm">Expand All</button>
-          <button type="button" id="copyJsonBtn" class="btn btn-secondary btn-sm">Copy JSON</button>
           <button type="button" id="updateDescriptionsBtn" class="btn btn-primary btn-sm">Update Item Descriptions</button>
         </div>
         <!-- Update Progress Bar -->
@@ -939,6 +938,9 @@
         await searchWorkOrders();
         showProgress('Complete!', 100);
 
+        // Auto-expand the JSON tree
+        expandAllJsonViewer();
+
       } catch (e) {
         logToConsole('Update Item Descriptions exception: ' + (e.message || String(e)), 'error');
       } finally {
@@ -1082,25 +1084,6 @@
 
       const updateDescriptionsBtn = document.getElementById('updateDescriptionsBtn');
       if (updateDescriptionsBtn) updateDescriptionsBtn.addEventListener('click', updateItemDescriptions);
-
-      const copyJsonBtn = document.getElementById('copyJsonBtn');
-      if (copyJsonBtn) {
-        copyJsonBtn.addEventListener('click', () => {
-          if (window._lastSearchJson == null) return;
-          try {
-            const str = typeof window._lastSearchJson === 'string'
-              ? window._lastSearchJson
-              : JSON.stringify(window._lastSearchJson, null, 2);
-            navigator.clipboard.writeText(str).then(() => {
-              copyJsonBtn.textContent = 'Copied!';
-              setTimeout(() => { copyJsonBtn.textContent = 'Copy JSON'; }, 2000);
-            });
-          } catch (e) {
-            copyJsonBtn.textContent = 'Copy failed';
-            setTimeout(() => { copyJsonBtn.textContent = 'Copy JSON'; }, 2000);
-          }
-        });
-      }
 
       if (consoleToggleBtn) {
         consoleToggleBtn.addEventListener('click', () => {
