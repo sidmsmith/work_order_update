@@ -684,10 +684,11 @@
         });
         if (result.success && result.data != null) {
           if (statusEl) statusEl.textContent = 'Results loaded. Use expand/collapse to browse.';
-          renderJsonViewer(viewerWrap, result.data);
+          const displayData = dataByOrderId(result.data);
+          renderJsonViewer(viewerWrap, displayData);
           if (viewerWrap) viewerWrap.style.display = 'block';
           if (toolbar) toolbar.style.display = 'flex';
-          window._lastSearchJson = result.data;
+          window._lastSearchJson = displayData;
         } else {
           const msg = result.error || 'Search failed';
           if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
@@ -699,6 +700,24 @@
       } finally {
         if (btn) btn.disabled = false;
       }
+    }
+
+    // Extract orders array from API response and build object keyed by OrderId for results pane
+    function dataByOrderId(apiData) {
+      if (apiData == null) return {};
+      const raw = typeof apiData === 'string' ? (function() { try { return JSON.parse(apiData); } catch (e) { return apiData; } })() : apiData;
+      let orders = [];
+      if (raw && typeof raw === 'object') {
+        if (Array.isArray(raw.data)) orders = raw.data;
+        else if (Array.isArray(raw)) orders = raw;
+        else return raw;
+      }
+      const byOrderId = {};
+      orders.forEach(function(o, i) {
+        const id = (o && (o.OrderId != null ? o.OrderId : o.orderId != null ? o.orderId : null)) || ('[' + i + ']');
+        byOrderId[id] = o;
+      });
+      return byOrderId;
     }
 
     function renderJsonViewer(container, data) {
