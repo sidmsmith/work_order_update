@@ -170,15 +170,7 @@ def order_search():
         return jsonify({"success": False, "error": str(e)})
 
 
-# =============================================================================
-# VERCEL HANDLER
-# =============================================================================
-def handler(request):
-    return app(request.environ, lambda status, headers: None)
-
-
-
-
+# Vercel auto-detects the Flask "app" instance; do not define a custom handler.
 
 
 
