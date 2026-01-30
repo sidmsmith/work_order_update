@@ -156,7 +156,7 @@ def order_search():
         if not order_ids:
             return jsonify({"success": False, "error": "Enter at least one Work Order ID or * for all"})
         quoted = "', '".join(order_ids)
-        query = f"OrderProcessTypeId = 'Work Order' AND OrderId IN [ '{quoted}' ]"
+        query = f"OrderProcessTypeId = 'Work Order' AND OrderId IN (['{quoted}'])"
 
     payload = {
         "Query": query,
