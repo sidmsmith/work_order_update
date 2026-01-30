@@ -317,6 +317,7 @@
         <div id="workOrderSearchStatus" class="status-label" style="margin-top: 0.5rem;"></div>
         <div id="workOrderSearchError" class="status-label" style="margin-top: 0.5rem; color: var(--red-text); display: none;"></div>
         <div id="jsonViewerToolbar" class="btn-row" style="display: none; margin-top: 0.5rem;">
+          <button type="button" id="expandAllBtn" class="btn btn-secondary btn-sm">Expand All</button>
           <button type="button" id="copyJsonBtn" class="btn btn-secondary btn-sm">Copy JSON</button>
         </div>
         <div id="jsonViewerWrap" class="json-viewer-wrap" style="display: none;"></div>
@@ -713,6 +714,11 @@
         else if (Array.isArray(raw)) orders = raw;
         else return raw;
       }
+      orders.sort(function(a, b) {
+        const idA = (a && (a.OrderId != null ? a.OrderId : a.orderId != null ? a.orderId : '')) || '';
+        const idB = (b && (b.OrderId != null ? b.OrderId : b.orderId != null ? b.orderId : '')) || '';
+        return String(idA).localeCompare(String(idB));
+      });
       const byOrderId = {};
       orders.forEach(function(o, i) {
         const id = (o && (o.OrderId != null ? o.OrderId : o.orderId != null ? o.orderId : null)) || ('[' + i + ']');
@@ -734,6 +740,13 @@
         err.textContent = 'Invalid JSON: ' + (e.message || String(e));
         container.appendChild(err);
       }
+    }
+
+    function expandAllJsonViewer() {
+      const wrap = document.getElementById('jsonViewerWrap');
+      if (!wrap) return;
+      wrap.querySelectorAll('.jv-children').forEach(function(el) { el.style.display = ''; });
+      wrap.querySelectorAll('.jv-toggle').forEach(function(el) { el.textContent = '\u25BC '; });
     }
 
     function buildJsonNode(value, key, keyLabel, expanded) {
@@ -862,6 +875,9 @@
           if (e.key === 'Enter') searchWorkOrders();
         });
       }
+
+      const expandAllBtn = document.getElementById('expandAllBtn');
+      if (expandAllBtn) expandAllBtn.addEventListener('click', expandAllJsonViewer);
 
       const copyJsonBtn = document.getElementById('copyJsonBtn');
       if (copyJsonBtn) {
