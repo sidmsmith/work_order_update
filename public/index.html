@@ -321,6 +321,24 @@
         <div id="jsonViewerWrap" class="json-viewer-wrap" style="display: none;"></div>
       </div>
     </div>
+
+    <!-- Console Toggle (bottom of screen, similar to cycle_count) -->
+    <div class="text-center mt-3" id="consoleToggleContainer">
+      <button class="btn btn-sm btn-outline-secondary" id="consoleToggleBtn" type="button" title="Toggle Console">
+        <i class="fas fa-terminal" id="consoleToggleIcon"></i> Console
+      </button>
+    </div>
+    <div id="consoleSection" class="mt-4" style="display:none;">
+      <div class="section-frame">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="section-title">Console</div>
+          <button class="btn btn-sm btn-outline-secondary" id="consoleCloseBtn" type="button" title="Hide Console">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="console-output" id="console"></div>
+      </div>
+    </div>
   </div>
 
   <!-- THEME SELECTOR MODAL -->
@@ -345,37 +363,56 @@
     let sessionOrg = null; // ORG stored in session (resets on refresh)
     let sessionToken = null; // Token stored in session (resets on refresh)
     let isAuthenticated = false; // Track authentication status
-    // Simple console logging function
+
+    // Console elements (set after DOM ready)
+    let consoleEl = null;
+    let consoleSection = null;
+    let consoleToggleBtn = null;
+    let consoleCloseBtn = null;
+
+    // Console logging: writes to bottom console window and browser console
     function logToConsole(message, type = 'info') {
       const timestamp = new Date().toLocaleTimeString();
-      const prefix = `[${timestamp}]`;
-      console.log(`${prefix} ${message}`);
+      const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+      const safe = String(message).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      if (consoleEl) {
+        consoleEl.innerHTML += '<span class="' + className + '">[' + timestamp + '] ' + safe + '</span><br>';
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+      }
+      console.log('[' + timestamp + '] ' + message);
     }
 
-    // API call function
+    // API call function – logs request payload and response payload for troubleshooting
     async function apiCall(endpoint, data) {
+      const url = `/api/${endpoint}`;
       try {
-        logToConsole(`[API] Calling ${endpoint}...`, 'info');
-        const url = `/api/${endpoint}`;
+        logToConsole('[API] ' + endpoint + ' – request:', 'info');
+        logToConsole(JSON.stringify(data, null, 2), 'info');
         const requestOptions = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         };
         const response = await fetch(url, requestOptions);
+        const rawText = await response.text();
         if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
+          logToConsole('[API] ' + endpoint + ' – HTTP ' + response.status, 'error');
+          logToConsole(rawText, 'error');
+          throw new Error('HTTP ' + response.status + ': ' + rawText);
         }
-        const result = await response.json();
-        if (result.success) {
-          logToConsole(`[API] ${endpoint} succeeded`, 'success');
-        } else {
-          logToConsole(`[API] ${endpoint} failed: ${result.error}`, 'error');
-          }
+        let result;
+        try {
+          result = JSON.parse(rawText);
+        } catch (e) {
+          logToConsole('[API] ' + endpoint + ' – response (non-JSON):', 'warning');
+          logToConsole(rawText, 'warning');
+          return { success: false, error: 'Invalid JSON response' };
+        }
+        logToConsole('[API] ' + endpoint + ' – response:', result.success ? 'success' : 'error');
+        logToConsole(JSON.stringify(result, null, 2), result.success ? 'success' : 'error');
         return result;
       } catch (error) {
-        logToConsole(`[API] ${endpoint} exception: ${error.message}`, 'error');
+        logToConsole('[API] ' + endpoint + ' exception: ' + error.message, 'error');
         return { success: false, error: error.message };
       }
     }
@@ -800,9 +837,28 @@
           }
         });
       }
+
+      if (consoleToggleBtn) {
+        consoleToggleBtn.addEventListener('click', () => {
+          if (consoleSection) {
+            const isHidden = consoleSection.style.display === 'none' || !consoleSection.style.display;
+            consoleSection.style.display = isHidden ? 'block' : 'none';
+          }
+        });
+      }
+      if (consoleCloseBtn) {
+        consoleCloseBtn.addEventListener('click', () => {
+          if (consoleSection) consoleSection.style.display = 'none';
+        });
+      }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+      consoleEl = document.getElementById('console');
+      consoleSection = document.getElementById('consoleSection');
+      consoleToggleBtn = document.getElementById('consoleToggleBtn');
+      consoleCloseBtn = document.getElementById('consoleCloseBtn');
+
       logToConsole(`Work Order Update ${APP_VERSION} initialized`, 'success');
       
       // Load theme on page load
