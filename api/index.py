@@ -33,10 +33,13 @@ CLIENT_ID = "omnicomponent.1.0.0"
 def get_manhattan_token(org):
     """Get Manhattan WMS authentication token"""
     if not MANHATTAN_PASSWORD or not MANHATTAN_SECRET:
+        log_to_console("get_manhattan_token: MANHATTAN_PASSWORD or MANHATTAN_SECRET missing (len set: pwd=%s, secret=%s)" % (
+            "yes" if MANHATTAN_PASSWORD else "no", "yes" if MANHATTAN_SECRET else "no"), prefix="[AUTH]")
         return None
-    
+
     url = f"https://{AUTH_HOST}/oauth/token"
     username = f"{USERNAME_BASE}{org.lower()}"
+    log_to_console("get_manhattan_token: POST %s (username=%s)" % (url, username), prefix="[AUTH]")
     data = {
         "grant_type": "password",
         "username": username,
@@ -46,10 +49,21 @@ def get_manhattan_token(org):
     auth = HTTPBasicAuth(CLIENT_ID, MANHATTAN_SECRET)
     try:
         r = requests.post(url, data=data, headers=headers, auth=auth, timeout=60, verify=False)
+        log_to_console("get_manhattan_token: response status=%s" % r.status_code, prefix="[AUTH]")
         if r.status_code == 200:
-            return r.json().get("access_token")
+            token = r.json().get("access_token")
+            if token:
+                log_to_console("get_manhattan_token: token received (len=%s)" % len(token), prefix="[AUTH]")
+            else:
+                log_to_console("get_manhattan_token: 200 OK but no access_token in body", prefix="[AUTH]")
+            return token
+        try:
+            err_body = r.text[:500] if r.text else "(empty)"
+            log_to_console("get_manhattan_token: non-200 body: %s" % err_body, prefix="[AUTH]")
+        except Exception:
+            log_to_console("get_manhattan_token: non-200 (could not read body)", prefix="[AUTH]")
     except Exception as e:
-        print(f"[AUTH] Error: {e}")
+        log_to_console("get_manhattan_token: exception: %s" % e, prefix="[AUTH]")
     return None
 
 def log_to_console(message, prefix="[API]"):
@@ -80,7 +94,8 @@ def auth():
             "error": "Server configuration error: MANHATTAN_PASSWORD and MANHATTAN_SECRET must be set in Vercel environment variables."
         })
 
-    log_to_console(f"Authenticating for ORG: {org}")
+    log_to_console("Authenticating for ORG: %s (env vars set: pwd=%s, secret=%s)" % (
+        org, "yes" if MANHATTAN_PASSWORD else "no", "yes" if MANHATTAN_SECRET else "no"), prefix="[API]")
     token = get_manhattan_token(org)
     if token:
         log_to_console(f"Auth success for ORG: {org}")
