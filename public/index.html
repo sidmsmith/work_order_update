@@ -30,6 +30,8 @@
       --input-focus-shadow: rgba(13, 110, 253, 0.25);
       --orange: #e67700;
       --purple: #9c27b0;
+      --code-color: #79c0ff;
+      --code-bg: #2d2d2d;
     }
 
     body { 
@@ -97,8 +99,10 @@
     }
 
     .form-label { color: var(--text-secondary); font-weight: 600; font-size: 0.9em; }
-    small { color: var(--text-muted); font-size: 0.85em; }
+    small, .small { color: var(--text-muted); font-size: 0.85em; }
+    .text-muted { color: var(--text-muted) !important; }
     h2 { color: var(--primary); text-align: center; margin-bottom: 1.5rem; }
+    code { color: var(--code-color); background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
     
     /* Theme Selector */
     .theme-selector-btn {
@@ -580,7 +584,9 @@
           '--input-focus-border': '#0d6efd',
           '--input-focus-shadow': 'rgba(13, 110, 253, 0.25)',
           '--orange': '#e67700',
-          '--purple': '#9c27b0'
+          '--purple': '#9c27b0',
+          '--code-color': '#79c0ff',
+          '--code-bg': '#2d2d2d'
         }
       },
       'manhattan': {
@@ -607,7 +613,9 @@
           '--input-focus-border': '#0066cc',
           '--input-focus-shadow': 'rgba(0, 102, 204, 0.25)',
           '--orange': '#e67700',
-          '--purple': '#9c27b0'
+          '--purple': '#9c27b0',
+          '--code-color': '#d63384',
+          '--code-bg': '#f0f2f5'
         }
       }
     };
