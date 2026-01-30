@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Work Order Update v1.0.0</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    :root {
+      --bg-dark: #121212;
+      --card-bg: #1e1e1e;
+      --input-bg: #2d2d2d;
+      --border: #333;
+      --text: #e0e0e0;
+      --text-secondary: #bbbbbb;
+      --text-muted: #999;
+      --red-bg: #4a1a1a;
+      --red-text: #ff6b6b;
+      --blue-select: #339af0;
+      --success: #28a745;
+      --primary: #0d6efd;
+      --primary-hover: #0b5ed7;
+      --success-hover: #218838;
+      --table-header-bg: #2a2a2a;
+      --table-header-text: #e0e0e0;
+      --input-border: #444;
+      --input-focus-bg: #333;
+      --input-focus-border: #0d6efd;
+      --input-focus-shadow: rgba(13, 110, 253, 0.25);
+      --orange: #e67700;
+      --purple: #9c27b0;
+    }
+
+    body { 
+      background: var(--bg-dark); 
+      color: var(--text); 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      min-height: 100vh;
+      margin: 0;
+      padding-bottom: 2rem;
+    }
+
+    .main-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      padding: 1.5rem;
+      margin: 1rem;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    @media (min-width: 769px) {
+      .main-card { max-width: 1200px; margin: 2rem auto; }
+    }
+
+    .form-control, .form-select, textarea {
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text);
+      border-radius: 8px;
+    }
+    .form-control:focus, .form-select:focus, textarea:focus {
+      background: var(--input-focus-bg);
+      border-color: var(--input-focus-border);
+      box-shadow: 0 0 0 0.2rem var(--input-focus-shadow);
+      color: var(--text);
+    }
+
+    .btn-primary { background: var(--primary); border: none; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-success { background: var(--success); border: none; }
+    .btn-success:hover { background: var(--success-hover); }
+    .btn-secondary { background: #6c757d; border: none; }
+    .btn-danger { background: #dc3545; border: none; color: white; }
+    .btn-orange { background: var(--orange); border: none; color: white; }
+    .btn-purple { background: var(--purple); border: none; }
+
+    .section-frame {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      background: var(--card-bg);
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .form-label { color: var(--text-secondary); font-weight: 600; font-size: 0.9em; }
+    small { color: var(--text-muted); font-size: 0.85em; }
+    h2 { color: var(--primary); text-align: center; margin-bottom: 1.5rem; }
+    
+    /* Theme Selector */
+    .theme-selector-btn {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: none;
+      border: none;
+      color: var(--text);
+      padding: 0;
+      cursor: pointer;
+      font-size: 1.5rem;
+      z-index: 1000;
+      transition: opacity 0.2s;
+    }
+    .theme-selector-btn:hover {
+      opacity: 0.7;
+    }
+    
+    /* Modal Styling */
+    .modal-content {
+      background-color: var(--card-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .modal-header, .modal-footer {
+      border-color: var(--border);
+    }
+    
+    /* Status Label */
+    .progress { height: 12px; background: var(--input-bg); border-radius: 6px; }
+    .progress-bar { background: var(--success); }
+
+    .status-label {
+      font-size: 0.85em;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    /* Console Output */
+    .console-output {
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #0f0;
+      font-family: 'Courier New', monospace;
+      font-size: 0.8em;
+      padding: 0.75rem;
+      height: 300px;
+      overflow-y: auto;
+      margin-top: 1rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .console-output .error { color: var(--red-text); }
+    .console-output .success { color: #51cf66; }
+    .console-output .info { color: var(--blue-select); }
+    .console-output .warning { color: #ffd43b; }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .input-row label {
+      min-width: 150px;
+      margin-bottom: 0;
+    }
+
+    .input-row input, .input-row select {
+      flex: 1;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .products-display {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 0.5rem;
+    }
+
+    .product-item {
+      padding: 0.25rem 0;
+      color: var(--text);
+    }
+
+    /* Modal/Popup Styles */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .script-display {
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85em;
+      color: #0f0;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      margin-bottom: 1rem;
+    }
+
+    .script-display.truncated::after {
+      content: '\n\n... (script continues - use Copy Script to get full version)';
+      color: var(--text-muted);
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .modal-buttons .btn {
+      min-width: 140px;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-card">
+    <button class="theme-selector-btn" id="themeSelectorBtn" title="Select Theme">
+      <i class="fas fa-cog"></i>
+    </button>
+    <h2>Work Order Update v1.0.0</h2>
+
+    <!-- ============================================================================= -->
+    <!-- AUTHENTICATION SECTION -->
+    <!-- ============================================================================= -->
+    <div class="section-frame" id="authSection">
+      <div class="section-title">Authentication</div>
+      
+      <div class="input-row">
+        <label class="form-label">Organization:</label>
+        <input type="text" id="orgInput" class="form-control" placeholder="Enter Organization" />
+        <button id="authBtn" class="btn btn-primary" type="button">Authenticate</button>
+      </div>
+
+      <div id="authStatus" class="status-label" style="margin-top: 0.5rem;"></div>
+      <div id="authError" class="status-label" style="margin-top: 0.5rem; color: var(--red-text); display: none;"></div>
+    </div>
+
+    <!-- ============================================================================= -->
+    <!-- MAIN CONTENT (Hidden until authenticated) -->
+    <!-- ============================================================================= -->
+    <div id="mainContent" style="display: none;">
+    <div class="section-frame">
+        <div class="section-title">Welcome</div>
+        <p>You are successfully authenticated!</p>
+        </div>
+    </div>
+  </div>
+
+  <!-- THEME SELECTOR MODAL -->
+  <div class="modal fade" id="themeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Select Theme</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="list-group" id="themeList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const APP_VERSION = 'v1.0.0';
+    
+    // Authentication state
+    let sessionOrg = null; // ORG stored in session (resets on refresh)
+    let sessionToken = null; // Token stored in session (resets on refresh)
+    let isAuthenticated = false; // Track authentication status
+    // Simple console logging function
+    function logToConsole(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const prefix = `[${timestamp}]`;
+      console.log(`${prefix} ${message}`);
+    }
+
+    // API call function
+    async function apiCall(endpoint, data) {
+      try {
+        logToConsole(`[API] Calling ${endpoint}...`, 'info');
+        const url = `/api/${endpoint}`;
+        const requestOptions = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        };
+        const response = await fetch(url, requestOptions);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        const result = await response.json();
+        if (result.success) {
+          logToConsole(`[API] ${endpoint} succeeded`, 'success');
+        } else {
+          logToConsole(`[API] ${endpoint} failed: ${result.error}`, 'error');
+          }
+        return result;
+      } catch (error) {
+        logToConsole(`[API] ${endpoint} exception: ${error.message}`, 'error');
+        return { success: false, error: error.message };
+      }
+    }
+
+    // Update UI based on authentication status
+    function updateAuthUI() {
+      const authSection = document.getElementById('authSection');
+      const mainContent = document.getElementById('mainContent');
+      const authStatus = document.getElementById('authStatus');
+      const authError = document.getElementById('authError');
+      const orgInput = document.getElementById('orgInput');
+      const authBtn = document.getElementById('authBtn');
+
+      if (isAuthenticated) {
+        // Hide auth section, show main content
+        if (authSection) authSection.style.display = 'none';
+        if (mainContent) mainContent.style.display = 'block';
+        if (authStatus) authStatus.textContent = `Authenticated as: ${sessionOrg}`;
+        if (authError) authError.style.display = 'none';
+      } else {
+        // Show auth section, hide main content
+        if (authSection) authSection.style.display = 'block';
+        if (mainContent) mainContent.style.display = 'none';
+        if (authStatus) authStatus.textContent = '';
+        if (authError) authError.style.display = 'none';
+        if (orgInput) orgInput.disabled = false;
+        if (authBtn) authBtn.disabled = false;
+      }
+    }
+
+    // Handle authentication
+    async function authenticate(org) {
+      if (!org || !org.trim()) {
+        const authError = document.getElementById('authError');
+        if (authError) {
+          authError.textContent = 'Please enter an Organization';
+          authError.style.display = 'block';
+        }
+        return false;
+      }
+
+      const orgInput = document.getElementById('orgInput');
+      const authBtn = document.getElementById('authBtn');
+      const authStatus = document.getElementById('authStatus');
+      const authError = document.getElementById('authError');
+
+      // Disable inputs during authentication
+      if (orgInput) orgInput.disabled = true;
+      if (authBtn) authBtn.disabled = true;
+      if (authStatus) authStatus.textContent = 'Authenticating...';
+      if (authError) authError.style.display = 'none';
+
+      try {
+        const result = await apiCall('auth', { org: org.trim() });
+        
+        if (result.success) {
+          sessionOrg = org.trim();
+          sessionToken = result.token;
+          isAuthenticated = true;
+          logToConsole(`Authentication successful for ORG: ${sessionOrg}`, 'success');
+          updateAuthUI();
+          return true;
+          } else {
+          isAuthenticated = false;
+          sessionOrg = null;
+          sessionToken = null;
+          const errorMsg = result.error || 'Authentication failed';
+          logToConsole(`Authentication failed: ${errorMsg}`, 'error');
+          if (authError) {
+            authError.textContent = errorMsg;
+            authError.style.display = 'block';
+          }
+          if (authStatus) authStatus.textContent = '';
+          updateAuthUI();
+          return false;
+        }
+      } catch (error) {
+        isAuthenticated = false;
+        sessionOrg = null;
+        sessionToken = null;
+        logToConsole(`Authentication error: ${error.message}`, 'error');
+        if (authError) {
+          authError.textContent = `Error: ${error.message}`;
+          authError.style.display = 'block';
+        }
+        if (authStatus) authStatus.textContent = '';
+        updateAuthUI();
+        return false;
+      } finally {
+        if (orgInput) orgInput.disabled = false;
+        if (authBtn) authBtn.disabled = false;
+      }
+    }
+
+    // Theme selector elements (will be initialized after DOM loads)
+    let themeSelectorBtn = null;
+    let themeModal = null;
+    let themeList = null;
+
+    // THEME DEFINITIONS
+    const themes = {
+      'dark': {
+        name: 'Dark',
+        colors: {
+          '--bg-dark': '#121212',
+          '--card-bg': '#1e1e1e',
+          '--input-bg': '#2d2d2d',
+          '--border': '#333',
+          '--text': '#e0e0e0',
+          '--text-secondary': '#bbbbbb',
+          '--text-muted': '#999',
+          '--red-bg': '#4a1a1a',
+          '--red-text': '#ff6b6b',
+          '--blue-select': '#339af0',
+          '--success': '#28a745',
+          '--primary': '#0d6efd',
+          '--primary-hover': '#0b5ed7',
+          '--success-hover': '#218838',
+          '--table-header-bg': '#2a2a2a',
+          '--table-header-text': '#e0e0e0',
+          '--input-border': '#444',
+          '--input-focus-bg': '#333',
+          '--input-focus-border': '#0d6efd',
+          '--input-focus-shadow': 'rgba(13, 110, 253, 0.25)',
+          '--orange': '#e67700',
+          '--purple': '#9c27b0'
+        }
+      },
+      'manhattan': {
+        name: 'Manhattan',
+        colors: {
+          '--bg-dark': '#f5f7fa',
+          '--card-bg': '#ffffff',
+          '--input-bg': '#f0f2f5',
+          '--border': '#e1e8ed',
+          '--text': '#1a1a1a',
+          '--text-secondary': '#4a5568',
+          '--text-muted': '#718096',
+          '--red-bg': '#fff5f5',
+          '--red-text': '#e53e3e',
+          '--blue-select': '#3182ce',
+          '--success': '#38a169',
+          '--primary': '#0066cc',
+          '--primary-hover': '#0052a3',
+          '--success-hover': '#2f855a',
+          '--table-header-bg': '#0066cc',
+          '--table-header-text': '#ffffff',
+          '--input-border': '#cbd5e0',
+          '--input-focus-bg': '#ffffff',
+          '--input-focus-border': '#0066cc',
+          '--input-focus-shadow': 'rgba(0, 102, 204, 0.25)',
+          '--orange': '#e67700',
+          '--purple': '#9c27b0'
+        }
+      }
+    };
+
+    // THEME FUNCTIONS
+    function applyTheme(themeKey) {
+      const theme = themes[themeKey];
+      if (!theme) return;
+
+      const root = document.documentElement;
+      Object.entries(theme.colors).forEach(([property, value]) => {
+        root.style.setProperty(property, value);
+      });
+
+      // Save to localStorage
+      localStorage.setItem('selectedTheme', themeKey);
+    }
+
+    function loadTheme() {
+      const savedTheme = localStorage.getItem('selectedTheme') || 'dark';
+      applyTheme(savedTheme);
+    }
+
+    function renderThemeList() {
+      if (!themeList) return;
+      themeList.innerHTML = '';
+      const currentTheme = localStorage.getItem('selectedTheme') || 'dark';
+      
+      Object.entries(themes).forEach(([key, theme]) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = `list-group-item list-group-item-action ${key === currentTheme ? 'active' : ''}`;
+        item.textContent = theme.name;
+        item.onclick = () => {
+          applyTheme(key);
+          themeModal.hide();
+        };
+        themeList.appendChild(item);
+      });
+    }
+
+    // Initialize theme selector (called after DOM loads)
+    function initializeThemeSelector() {
+      themeSelectorBtn = document.getElementById('themeSelectorBtn');
+      const themeModalElement = document.getElementById('themeModal');
+      if (themeModalElement) {
+        themeModal = new bootstrap.Modal(themeModalElement);
+      }
+      themeList = document.getElementById('themeList');
+      
+      if (themeSelectorBtn) {
+        themeSelectorBtn.onclick = () => {
+          renderThemeList();
+          if (themeModal) themeModal.show();
+        };
+      }
+    }
+
+    // Register event handlers
+    function registerEventHandlers() {
+      const authBtn = document.getElementById('authBtn');
+      const orgInput = document.getElementById('orgInput');
+
+      if (authBtn) {
+        authBtn.addEventListener('click', async () => {
+          const org = orgInput ? orgInput.value : '';
+          await authenticate(org);
+        });
+      }
+
+      if (orgInput) {
+        orgInput.addEventListener('keypress', async (e) => {
+          if (e.key === 'Enter') {
+            await authenticate(orgInput.value);
+          }
+        });
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      logToConsole(`Work Order Update ${APP_VERSION} initialized`, 'success');
+      
+      // Load theme on page load
+      loadTheme();
+      
+      // Initialize theme selector
+      initializeThemeSelector();
+      
+      // Register event handlers
+      registerEventHandlers();
+      
+      // Initialize UI state
+      updateAuthUI();
+      
+      // Check for Organization parameter in URL and auto-authenticate
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlOrg = urlParams.get('Organization');
+      
+      if (urlOrg && urlOrg.trim()) {
+        logToConsole(`Organization parameter detected in URL: ${urlOrg.trim()}. Auto-authenticating...`, 'info');
+        
+        // Populate the input field
+        const orgInput = document.getElementById('orgInput');
+        if (orgInput) {
+          orgInput.value = urlOrg.trim();
+        }
+        
+        // Auto-authenticate
+        authenticate(urlOrg.trim()).then(success => {
+          if (success) {
+            logToConsole(`Auto-authentication successful for Organization: ${sessionOrg}`, 'success');
+        } else {
+            logToConsole(`Auto-authentication failed for Organization: ${urlOrg.trim()}`, 'error');
+            const authError = document.getElementById('authError');
+            if (authError) {
+              authError.style.display = 'block';
+            }
+          }
+        });
+      }
+    });
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
