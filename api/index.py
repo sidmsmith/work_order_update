@@ -176,15 +176,27 @@ def order_search():
 
     log_to_console(f"Order search for ORG: {org}, wildcard={use_wildcard}, query={query[:80]}...")
 
+    # For console troubleshooting: include backend URL and payload (token redacted) in every response
+    request_details = {
+        "backendUrl": url,
+        "payloadSent": {"Query": payload["Query"], "Size": payload["Size"], "Template": payload["Template"]},
+    }
+
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=60, verify=False)
         body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"raw": r.text}
         if not r.ok:
-            return jsonify({"success": False, "error": body.get("message", r.text[:500]), "status": r.status_code})
-        return jsonify({"success": True, "data": body})
+            err_msg = body.get("message", body.get("error_description", r.text[:500])) if isinstance(body, dict) else r.text[:500]
+            return jsonify({
+                "success": False,
+                "error": err_msg,
+                "status": r.status_code,
+                "requestDetails": request_details,
+            })
+        return jsonify({"success": True, "data": body, "requestDetails": request_details})
     except Exception as e:
         log_to_console(f"Order search error: {e}", prefix="[ORDER_SEARCH]")
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e), "requestDetails": request_details})
 
 
 # =============================================================================

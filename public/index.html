@@ -398,13 +398,14 @@
       return out;
     }
 
-    // API call function – logs URL, request payload (token redacted), and response payload
+    // API call function – full cycle_count-style logging: section header, endpoint, full request payload, full response
     async function apiCall(endpoint, data) {
       const url = '/api/' + endpoint;
+      logToConsole('\n=== API Call: ' + endpoint + ' ===', 'info');
+      logToConsole('Endpoint: ' + url, 'info');
+      logToConsole('Request Payload:', 'info');
+      logToConsole(JSON.stringify(redactPayload(data), null, 2), 'info');
       try {
-        logToConsole('[API] POST ' + url, 'info');
-        logToConsole('[API] ' + endpoint + ' – request payload:', 'info');
-        logToConsole(JSON.stringify(redactPayload(data), null, 2), 'info');
         const requestOptions = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -413,7 +414,7 @@
         const response = await fetch(url, requestOptions);
         const rawText = await response.text();
         if (!response.ok) {
-          logToConsole('[API] ' + endpoint + ' – HTTP ' + response.status, 'error');
+          logToConsole('Response (HTTP ' + response.status + '):', 'error');
           logToConsole(rawText, 'error');
           throw new Error('HTTP ' + response.status + ': ' + rawText);
         }
@@ -421,15 +422,21 @@
         try {
           result = JSON.parse(rawText);
         } catch (e) {
-          logToConsole('[API] ' + endpoint + ' – response (non-JSON):', 'warning');
+          logToConsole('Response (non-JSON):', 'warning');
           logToConsole(rawText, 'warning');
           return { success: false, error: 'Invalid JSON response' };
         }
-        logToConsole('[API] ' + endpoint + ' – response:', result.success ? 'success' : 'error');
+        logToConsole('Response:', result.success ? 'success' : 'error');
         logToConsole(JSON.stringify(redactPayload(result), null, 2), result.success ? 'success' : 'error');
+        if (result.requestDetails) {
+          logToConsole('Backend request (for troubleshooting):', 'info');
+          logToConsole('Backend URL: ' + (result.requestDetails.backendUrl || ''), 'info');
+          logToConsole('Backend Payload:', 'info');
+          logToConsole(JSON.stringify(result.requestDetails.payloadSent || {}, null, 2), 'info');
+        }
         return result;
       } catch (error) {
-        logToConsole('[API] ' + endpoint + ' exception: ' + error.message, 'error');
+        logToConsole('Exception: ' + error.message, 'error');
         return { success: false, error: error.message };
       }
     }
