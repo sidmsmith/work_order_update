@@ -382,12 +382,29 @@
       console.log('[' + timestamp + '] ' + message);
     }
 
-    // API call function – logs request payload and response payload for troubleshooting
+    // Redact token for console: show first 4 and last 4 chars only
+    function redactPayload(obj) {
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) return obj.map(redactPayload);
+      const out = {};
+      for (const key of Object.keys(obj)) {
+        const v = obj[key];
+        if (key.toLowerCase() === 'token' && typeof v === 'string' && v.length > 12) {
+          out[key] = v.substring(0, 4) + '...' + v.substring(v.length - 4);
+        } else {
+          out[key] = redactPayload(v);
+        }
+      }
+      return out;
+    }
+
+    // API call function – logs URL, request payload (token redacted), and response payload
     async function apiCall(endpoint, data) {
-      const url = `/api/${endpoint}`;
+      const url = '/api/' + endpoint;
       try {
-        logToConsole('[API] ' + endpoint + ' – request:', 'info');
-        logToConsole(JSON.stringify(data, null, 2), 'info');
+        logToConsole('[API] POST ' + url, 'info');
+        logToConsole('[API] ' + endpoint + ' – request payload:', 'info');
+        logToConsole(JSON.stringify(redactPayload(data), null, 2), 'info');
         const requestOptions = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -409,7 +426,7 @@
           return { success: false, error: 'Invalid JSON response' };
         }
         logToConsole('[API] ' + endpoint + ' – response:', result.success ? 'success' : 'error');
-        logToConsole(JSON.stringify(result, null, 2), result.success ? 'success' : 'error');
+        logToConsole(JSON.stringify(redactPayload(result), null, 2), result.success ? 'success' : 'error');
         return result;
       } catch (error) {
         logToConsole('[API] ' + endpoint + ' exception: ' + error.message, 'error');
