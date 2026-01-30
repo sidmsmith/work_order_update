@@ -11,7 +11,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 app = Flask(__name__)
 
 # =============================================================================
-# ENVIRONMENT VARIABLES
+# ENVIRONMENT VARIABLES (same as all other Manhattan apps - set in Vercel)
 # =============================================================================
 MANHATTAN_PASSWORD = os.getenv("MANHATTAN_PASSWORD")
 MANHATTAN_SECRET = os.getenv("MANHATTAN_SECRET")
@@ -62,17 +62,28 @@ def log_to_console(message, prefix="[API]"):
 
 @app.route('/api/auth', methods=['POST'])
 def auth():
-    """Authenticate with Manhattan WMS"""
-    org = request.json.get('org', '').strip()
+    """Authenticate with Manhattan WMS using MANHATTAN_PASSWORD and MANHATTAN_SECRET."""
+    try:
+        body = request.get_json(silent=True) or {}
+    except Exception:
+        body = {}
+    org = (body.get('org') or '').strip()
     if not org:
         return jsonify({"success": False, "error": "ORG required"})
-    
+
+    if not MANHATTAN_PASSWORD or not MANHATTAN_SECRET:
+        log_to_console("Auth failed: MANHATTAN_PASSWORD or MANHATTAN_SECRET not set", prefix="[AUTH]")
+        return jsonify({
+            "success": False,
+            "error": "Server configuration error: MANHATTAN_PASSWORD and MANHATTAN_SECRET must be set in Vercel environment variables."
+        })
+
     log_to_console(f"Authenticating for ORG: {org}")
     token = get_manhattan_token(org)
     if token:
         log_to_console(f"Auth success for ORG: {org}")
         return jsonify({"success": True, "token": token})
-    
+
     log_to_console(f"Auth failed for ORG: {org}")
     return jsonify({"success": False, "error": "Authentication failed"})
 
@@ -106,7 +117,10 @@ def parse_work_order_input(raw):
 @app.route("/api/orderSearch", methods=["POST"])
 def order_search():
     """Search work orders via /dcorder/api/dcorder/order/search."""
-    data = request.json or {}
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        data = {}
     org = (data.get("org") or "").strip()
     token = (data.get("token") or "").strip()
     work_order_input = (data.get("workOrderInput") or "").strip()

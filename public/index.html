@@ -302,16 +302,11 @@
     </div>
 
     <!-- ============================================================================= -->
-    <!-- MAIN CONTENT (Hidden until authenticated) -->
+    <!-- MAIN CONTENT (Hidden until authenticated - only Work Order input visible) -->
     <!-- ============================================================================= -->
     <div id="mainContent" style="display: none;">
-      <div class="section-frame">
-        <div class="section-title">Welcome</div>
-        <p>You are successfully authenticated!</p>
-      </div>
-
       <div class="section-frame" id="workOrderSection">
-        <div class="section-title">Work Order Search</div>
+        <div class="section-title">Work Order Search <span id="signedInAs" class="text-muted" style="font-weight: normal; font-size: 0.85em;"></span></div>
         <p class="small text-muted mb-2">Enter one or more Work Order IDs (separate with space, colon, or semicolon), or <strong>*</strong> for all work orders.</p>
         <div class="input-row">
           <label class="form-label">Work Order(s):</label>
@@ -395,10 +390,12 @@
       const authBtn = document.getElementById('authBtn');
 
       if (isAuthenticated) {
-        // Hide auth section, show main content
+        // Hide auth section completely; show only Work Order input
         if (authSection) authSection.style.display = 'none';
         if (mainContent) mainContent.style.display = 'block';
-        if (authStatus) authStatus.textContent = `Authenticated as: ${sessionOrg}`;
+        const signedInAs = document.getElementById('signedInAs');
+        if (signedInAs) signedInAs.textContent = `(signed in as ${sessionOrg})`;
+        if (authStatus) authStatus.textContent = '';
         if (authError) authError.style.display = 'none';
       } else {
         // Show auth section, hide main content
