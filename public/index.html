@@ -308,6 +308,7 @@
       <div class="section-frame" id="workOrderSection">
         <div class="section-title">Work Order Search <span id="signedInAs" class="text-muted" style="font-weight: normal; font-size: 0.85em;"></span></div>
         <p class="small text-muted mb-2">Enter one or more Work Order IDs (separate with space, colon, or semicolon), or <strong>*</strong> for all work orders.</p>
+        <p class="small text-muted mb-2">URL params: <code>WO</code>, <code>Order</code>, or <code>OrderId</code> — e.g. <code>?OrderId=WO00000169</code>, <code>?Order=*</code>, <code>?WO=WO1 WO2</code> (use space/semicolon for multiple).</p>
         <div class="input-row">
           <label class="form-label">Work Order(s):</label>
           <input type="text" id="workOrderInput" class="form-control" placeholder="e.g. WO123456 WO456 or *" />
@@ -916,29 +917,34 @@
       // Initialize UI state
       updateAuthUI();
       
-      // Check for Organization parameter in URL and auto-authenticate
+      // Check for Organization and Work Order parameters in URL
       const urlParams = new URLSearchParams(window.location.search);
       const urlOrg = urlParams.get('Organization');
-      
+      const urlOrder = urlParams.get('WO') || urlParams.get('Order') || urlParams.get('OrderId');
+
+      if (urlOrder && urlOrder.trim()) {
+        const workOrderInput = document.getElementById('workOrderInput');
+        if (workOrderInput) {
+          workOrderInput.value = urlOrder.trim();
+          logToConsole(`Work Order parameter detected in URL: ${urlOrder.trim()}`, 'info');
+        }
+      }
+
       if (urlOrg && urlOrg.trim()) {
         logToConsole(`Organization parameter detected in URL: ${urlOrg.trim()}. Auto-authenticating...`, 'info');
-        
-        // Populate the input field
         const orgInput = document.getElementById('orgInput');
-        if (orgInput) {
-          orgInput.value = urlOrg.trim();
-        }
-        
-        // Auto-authenticate
+        if (orgInput) orgInput.value = urlOrg.trim();
         authenticate(urlOrg.trim()).then(success => {
           if (success) {
             logToConsole(`Auto-authentication successful for Organization: ${sessionOrg}`, 'success');
-        } else {
+            if (urlOrder && urlOrder.trim()) {
+              logToConsole(`Auto-running Work Order search for: ${urlOrder.trim()}`, 'info');
+              searchWorkOrders();
+            }
+          } else {
             logToConsole(`Auto-authentication failed for Organization: ${urlOrg.trim()}`, 'error');
             const authError = document.getElementById('authError');
-            if (authError) {
-              authError.style.display = 'block';
-            }
+            if (authError) authError.style.display = 'block';
           }
         });
       }
