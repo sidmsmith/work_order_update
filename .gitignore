@@ -4,3 +4,11 @@ node_modules/
 .DS_Store
 .env
 .env.local
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+ENV/
