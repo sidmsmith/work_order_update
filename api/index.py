@@ -7,6 +7,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 import urllib3
 from http.server import BaseHTTPRequestHandler
+from datetime import datetime, timezone
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -25,6 +26,12 @@ AUTH_HOST = "salep-auth.sce.manh.com"
 API_HOST = "salep.sce.manh.com"
 USERNAME_BASE = "sdtadmin@"
 CLIENT_ID = "omnicomponent.1.0.0"
+
+# Usage → dashboard Neon ingest
+USAGE_INGEST_URL = os.getenv("MANHATTAN_USAGE_INGEST_URL", "").strip()
+USAGE_INGEST_SECRET = os.getenv("MANHATTAN_USAGE_INGEST_SECRET", "").strip()
+APP_NAME_USAGE = "work-order-update"
+APP_VERSION_USAGE = "1.0.0"
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -68,7 +75,6 @@ def get_manhattan_token(org):
 
 def log_to_console(message, prefix="[API]"):
     """Log message for console output"""
-    from datetime import datetime
     timestamp = datetime.now().strftime("%H:%M:%S")
     print(f"{timestamp} {prefix} {message}")
 
@@ -103,6 +109,37 @@ def auth():
 
     log_to_console(f"Auth failed for ORG: {org}")
     return jsonify({"success": False, "error": "Authentication failed"})
+
+
+def forward_usage_event(payload):
+    """POST usage JSON to Manhattan app usage dashboard ingest (Neon)."""
+    if not USAGE_INGEST_URL:
+        print("[usage] MANHATTAN_USAGE_INGEST_URL not set; event not recorded")
+        return
+    headers = {"Content-Type": "application/json"}
+    if USAGE_INGEST_SECRET:
+        headers["Authorization"] = f"Bearer {USAGE_INGEST_SECRET}"
+    try:
+        requests.post(USAGE_INGEST_URL, json=payload, headers=headers, timeout=8)
+    except Exception as e:
+        print(f"[usage] Forward failed: {e}")
+
+
+@app.route("/api/usage-track", methods=["POST"])
+def usage_track():
+    """Receive events from frontend and forward to usage ingest (Neon)."""
+    data = request.get_json(silent=True) or {}
+    event_name = data.get("event_name")
+    metadata = data.get("metadata", {})
+    payload = {
+        **metadata,
+        "event_name": event_name,
+        "app_name": APP_NAME_USAGE,
+        "app_version": APP_VERSION_USAGE,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    forward_usage_event(payload)
+    return jsonify({"success": True})
 
 
 # Order search template (requested shape for /dcorder/api/dcorder/order/search)

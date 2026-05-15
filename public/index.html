@@ -384,6 +384,41 @@
     let sessionToken = null; // Token stored in session (resets on refresh)
     let isAuthenticated = false; // Track authentication status
 
+    let pageLoadTime = Date.now();
+    let sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+
+    function getCommonMetadata(extra) {
+      extra = extra || {};
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlParamsObj = {};
+      urlParams.forEach(function (v, k) { urlParamsObj[k] = v; });
+      const titleMatch = document.title.match(/v(\d+\.\d+\.\d+)/i);
+      return Object.assign({
+        page_url: window.location.href,
+        page_path: window.location.pathname,
+        page_title: (document.title.split(/\s*v\d/i)[0] || '').trim() || 'Work Order Update',
+        ui_version: titleMatch ? titleMatch[1] : '1.0.0',
+        session_id: sessionId,
+        user_agent: navigator.userAgent,
+        referrer: document.referrer || null,
+        url_params: urlParamsObj,
+        theme: localStorage.getItem('selectedTheme') || 'dark',
+        request_origin: window.location.origin,
+        time_on_page_seconds: Math.floor((Date.now() - pageLoadTime) / 1000)
+      }, extra);
+    }
+
+    async function trackEvent(eventName, metadata) {
+      metadata = metadata || {};
+      try {
+        await fetch('/api/usage-track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_name: eventName, metadata: getCommonMetadata(metadata) })
+        });
+      } catch (e) { /* non-blocking */ }
+    }
+
     // Console elements (set after DOM ready)
     let consoleEl = null;
     let consoleSection = null;
@@ -511,6 +546,8 @@
       if (authStatus) authStatus.textContent = 'Authenticating...';
       if (authError) authError.style.display = 'none';
 
+      trackEvent('auth_attempt', { org: org.trim().toUpperCase() });
+
       try {
         const result = await apiCall('auth', { org: org.trim() });
         
@@ -519,6 +556,7 @@
           sessionToken = result.token;
           isAuthenticated = true;
           logToConsole(`Authentication successful for ORG: ${sessionOrg}`, 'success');
+          trackEvent('auth_success', { org: sessionOrg.toUpperCase() });
           updateAuthUI();
           return true;
           } else {
@@ -527,6 +565,7 @@
           sessionToken = null;
           const errorMsg = result.error || 'Authentication failed';
           logToConsole(`Authentication failed: ${errorMsg}`, 'error');
+          trackEvent('auth_failed', { org: org.trim().toUpperCase(), error: errorMsg });
           if (authError) {
             authError.textContent = errorMsg;
             authError.style.display = 'block';
@@ -540,6 +579,7 @@
         sessionOrg = null;
         sessionToken = null;
         logToConsole(`Authentication error: ${error.message}`, 'error');
+        trackEvent('auth_failed', { org: org.trim().toUpperCase(), error: error.message || 'exception' });
         if (authError) {
           authError.textContent = `Error: ${error.message}`;
           authError.style.display = 'block';
@@ -700,6 +740,8 @@
       const toolbar = document.getElementById('jsonViewerToolbar');
       if (toolbar) toolbar.style.display = 'none';
 
+      trackEvent('work_order_search_attempt', { wildcard: raw === '*', input_length: raw.length });
+
       try {
         const result = await apiCall('orderSearch', {
           org: sessionOrg,
@@ -713,14 +755,17 @@
           if (viewerWrap) viewerWrap.style.display = 'block';
           if (toolbar) toolbar.style.display = 'flex';
           window._lastSearchJson = displayData;
+          trackEvent('work_order_search_completed', { order_count: Object.keys(displayData).length });
         } else {
           const msg = result.error || 'Search failed';
           if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
           if (statusEl) statusEl.textContent = '';
+          trackEvent('work_order_search_failed', { error: msg });
         }
       } catch (e) {
         if (errorEl) { errorEl.textContent = e.message || 'Search failed'; errorEl.style.display = 'block'; }
         if (statusEl) statusEl.textContent = '';
+        trackEvent('work_order_search_failed', { error: e.message || 'exception' });
       } finally {
         if (btn) btn.disabled = false;
       }
@@ -816,6 +861,8 @@
       logToConsole('\n=== Starting Update Item Descriptions ===', 'info');
       logToConsole(`Total orders: ${orderIds.length}`, 'info');
 
+      trackEvent('work_order_descriptions_attempt', { order_count: orderIds.length });
+
       try {
         // Step 1: Extract all unique ItemIds from all orders
         showProgress('Extracting ItemIds...', 5);
@@ -834,6 +881,7 @@
         if (itemIds.length === 0) {
           logToConsole('No ItemIds found in orders', 'warning');
           hideProgress();
+          trackEvent('work_order_descriptions_aborted', { reason: 'no_item_ids' });
           return;
         }
 
@@ -844,6 +892,7 @@
         if (!itemResult.success) {
           logToConsole('Failed to fetch item descriptions: ' + (itemResult.error || 'Unknown error'), 'error');
           hideProgress();
+          trackEvent('work_order_descriptions_item_search_failed', { error: itemResult.error || 'unknown' });
           return;
         }
 
@@ -949,8 +998,11 @@
         // Auto-expand the JSON tree
         expandAllJsonViewer();
 
+        trackEvent('work_order_descriptions_completed', { success_count: successCount, fail_count: failCount });
+
       } catch (e) {
         logToConsole('Update Item Descriptions exception: ' + (e.message || String(e)), 'error');
+        trackEvent('work_order_descriptions_failed', { error: e.message || String(e) });
       } finally {
         // Hide progress bar after a delay to show 100%
         setTimeout(function() {
@@ -1119,6 +1171,8 @@
       // Load theme on page load
       loadTheme();
       
+      trackEvent('app_opened', {});
+
       // Initialize theme selector
       initializeThemeSelector();
       
